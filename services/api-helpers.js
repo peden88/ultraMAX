@@ -14,7 +14,7 @@ async function fetchCached(url) {
   return res.data;
 }
 
-async function fetchTrakt(path, traktClientId) {
+async function fetchTrakt(path, traktClientId, authHeaders = null) {
   if (!traktClientId) return [];
 
   const url = `https://api.trakt.tv${path}`;
@@ -27,8 +27,7 @@ async function fetchTrakt(path, traktClientId) {
       headers: {
         "Content-Type": "application/json",
         "trakt-api-version": "2",
-        "trakt-api-key": traktClientId
-      }
+        "trakt-api-key": traktClientId,\n        ...(authHeaders || {})\n      }
     });
 
     cache.set(url, res.data);
