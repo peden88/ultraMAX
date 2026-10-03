@@ -1,3 +1,4 @@
+const { assertPublicUrl } = require("../utils/net-guard");
 async function checkStreamWizard(req, res) {
   try {
     const manifestUrl = String(req.body?.manifestUrl || '').trim();
@@ -16,7 +17,7 @@ async function checkStreamWizard(req, res) {
       });
     }
 
-    const controller = new AbortController();
+    await assertPublicUrl(manifestUrl);\n\n    const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
 
     const r = await fetch(manifestUrl, {
@@ -24,8 +25,7 @@ async function checkStreamWizard(req, res) {
       headers: {
         'User-Agent': 'UltraMAX-StreamWizard/1.0'
       },
-      signal: controller.signal
-    });
+      signal: controller.signal,\n      redirect: 'error'\n    });
 
     clearTimeout(timeout);
 
@@ -113,7 +113,7 @@ async function checkStreamWizard(req, res) {
     });
 
   } catch (err) {
-    return res.status(500).json({
+    return res.status(err.code === 'E_PRIVATE_ADDRESS' ? 400 : 500).json({
       ok: false,
       error:
         err.name === 'AbortError'
