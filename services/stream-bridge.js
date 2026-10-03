@@ -44,7 +44,9 @@ async function fetchStreamsFromAddon(manifestUrl, type, id) {
   const cleanManifest = normaliseManifestUrl(manifestUrl);
   if (!cleanManifest) return [];
 
-  await assertPublicUrl(cleanManifest);\n  const url = streamUrlFromManifest(cleanManifest, type, id);\n  await assertPublicUrl(url);
+  await assertPublicUrl(cleanManifest);
+  const url = streamUrlFromManifest(cleanManifest, type, id);
+  await assertPublicUrl(url);
   const addonName = await fetchStreamAddonName(cleanManifest);
 
   const controller = new AbortController();
