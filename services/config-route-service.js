@@ -193,7 +193,7 @@ function registerConfigRoutes(app, deps) {
     });
   });
 
-  app.get("/debug/config/:token", (req, res) => {
+  app.post("/debug/config/:token", (req, res) => {
     const { token } = req.params;
     const configs = loadConfigs();
     const config = configs[token];
@@ -205,6 +205,9 @@ function registerConfigRoutes(app, deps) {
         token
       });
     }
+
+    const passwordCheck = verifyPassword(req.body?.password, config.passwordHash);
+    if (!passwordCheck.ok) return res.status(401).json({ ok:false, error:"Incorrect password" });
 
     const redact = value => {
       if (!value) return null;
