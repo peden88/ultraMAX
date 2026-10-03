@@ -126,14 +126,17 @@ builder.defineMetaHandler(async ({ type, id }) => {
 });
 
 const addonInterface = builder.getInterface();
-const app = express();\napp.set("trust proxy", process.env.TRUST_PROXY || "loopback, linklocal, uniquelocal");
+const app = express();
+app.set("trust proxy", process.env.TRUST_PROXY || "loopback, linklocal, uniquelocal");
 app.use((req, res, next) => { res.setHeader("Access-Control-Allow-Origin", "*"); res.setHeader("Access-Control-Allow-Headers", "*"); res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS"); if (req.method === "OPTIONS") return res.sendStatus(200); next(); });
 app.use(express.json());
 registerCatalogRoutes(app, catalogRouteDeps);
 registerConfigRoutes(app, {
   loadConfigs,
   saveConfigs,
-  hashPassword,\n  verifyPassword,\n  generateToken,
+  hashPassword,
+  verifyPassword,
+  generateToken,
   rateLimit
 });
 
@@ -477,7 +480,8 @@ Rules:
     }
 
     const data = JSON.parse(raw);
-    let text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("\n").trim() || "";
+    let text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("
+").trim() || "";
     text = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
 
     const rows = JSON.parse(text);
