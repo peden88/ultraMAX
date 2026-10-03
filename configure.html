@@ -1906,6 +1906,10 @@ These are needed to create and manage your Ultra MAX setup.
           <input type="password" id="userServicesSecret" placeholder="Streams / Metadata Secret (e.g. your name)" autocomplete="off" />
         </div>
         <div class="input-hint">Used once to securely derive separate private AIOStreams and AIOMetadata credentials. Ultra MAX does not store this secret.</div>
+        <div class="input-row" style="margin-top:10px;">
+          <input type="password" id="torboxApiKey" placeholder="TorBox API Key (optional)" autocomplete="off" />
+        </div>
+        <div class="input-hint">Passed directly into your provisioned AIOStreams configuration; Ultra MAX does not retain this API key.</div>
       </div>
 
       <div class="divider"></div>
@@ -5961,7 +5965,13 @@ async function generate(){
         const provisionRes = await fetch('/c/' + data.token + '/services/provision', {
           method:'POST',
           headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({password:pass,userSecret:serviceSecret})
+          body:JSON.stringify({
+            password:pass,
+            userSecret:serviceSecret,
+            serviceCredentials:{
+              torbox:{apiKey:((document.getElementById('torboxApiKey') || {}).value || '').trim()}
+            }
+          })
         });
         if(!provisionRes.ok){
           const provisionData = await provisionRes.json().catch(function(){ return {}; });
