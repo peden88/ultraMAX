@@ -2,7 +2,9 @@ function registerConfigRoutes(app, deps) {
   const {
     loadConfigs,
     saveConfigs,
-    hashPassword,\n    verifyPassword,\n    generateToken,
+    hashPassword,
+    verifyPassword,
+    generateToken,
     rateLimit
   } = deps;
 
@@ -104,7 +106,11 @@ function registerConfigRoutes(app, deps) {
       });
     }
 
-    const passwordCheck = verifyPassword(password, configs[token].passwordHash);\n    if (!passwordCheck.ok) {\n      return res.status(401).json({ error: "Incorrect password" });\n    }\n    if (passwordCheck.needsUpgrade) configs[token].passwordHash = hashPassword(password);
+    const passwordCheck = verifyPassword(password, configs[token].passwordHash);
+    if (!passwordCheck.ok) {
+      return res.status(401).json({ error: "Incorrect password" });
+    }
+    if (passwordCheck.needsUpgrade) configs[token].passwordHash = hashPassword(password);
 
     configs[token].catalogs = catalogs !== undefined ? catalogs : (configs[token].catalogs || []);
     configs[token].language = language || configs[token].language || "en-US";
@@ -165,7 +171,12 @@ function registerConfigRoutes(app, deps) {
       });
     }
 
-    const passwordCheck = verifyPassword(req.body?.password, configs[token].passwordHash);\n    if (!passwordCheck.ok) return res.status(401).json({ error: "Incorrect password" });\n    if (passwordCheck.needsUpgrade) { configs[token].passwordHash = hashPassword(req.body.password); saveConfigs(configs); }\n\n    res.json({\n      catalogs: configs[token].catalogs,
+    const passwordCheck = verifyPassword(req.body?.password, configs[token].passwordHash);
+    if (!passwordCheck.ok) return res.status(401).json({ error: "Incorrect password" });
+    if (passwordCheck.needsUpgrade) { configs[token].passwordHash = hashPassword(req.body.password); saveConfigs(configs); }
+
+    res.json({
+      catalogs: configs[token].catalogs,
       mdblistKey: configs[token].mdblistKey,
       language: configs[token].language,
       rpdbKey: configs[token].rpdbKey,
@@ -254,7 +265,11 @@ function registerConfigRoutes(app, deps) {
       });
     }
 
-    const passwordCheck = verifyPassword(req.body?.password, configs[token].passwordHash);\n    if (!passwordCheck.ok) return res.status(401).json({ error: "Incorrect password" });\n    if (passwordCheck.needsUpgrade) configs[token].passwordHash = hashPassword(req.body.password);\n\n    const { collections, replace } = req.body;
+    const passwordCheck = verifyPassword(req.body?.password, configs[token].passwordHash);
+    if (!passwordCheck.ok) return res.status(401).json({ error: "Incorrect password" });
+    if (passwordCheck.needsUpgrade) configs[token].passwordHash = hashPassword(req.body.password);
+
+    const { collections, replace } = req.body;
 
     if (!Array.isArray(collections)) {
       return res.status(400).json({
