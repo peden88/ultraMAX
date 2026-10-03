@@ -25,7 +25,8 @@ function registerProvisioningRoutes(app, deps) {
         userSecret: req.body?.userSecret,
         existing: config.services || {},
         aiostreamsConfig: req.body?.aiostreamsConfig || {},
-        aiometadataConfig: req.body?.aiometadataConfig || {}
+        aiometadataConfig: req.body?.aiometadataConfig || {},
+        serviceCredentials: req.body?.serviceCredentials || {}
       });
       config.services = services;
       config.updatedAt = new Date().toISOString();
