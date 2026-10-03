@@ -1,0 +1,22 @@
+name: Hardening CI
+on:
+  push:
+    branches: [ultramax-hardening]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: node --check index.js
+      - run: node --check services/stream-bridge.js
+      - run: node --check services/config-route-service.js
