@@ -20,3 +20,8 @@ jobs:
       - run: node --check index.js
       - run: node --check services/stream-bridge.js
       - run: node --check services/config-route-service.js
+      - run: node --check services/provider-client.js
+      - run: node --check services/provisioning-service.js
+      - run: node --check services/provisioning-route-service.js
+      - run: node --check utils/service-credentials.js
+      - run: node --check utils/secrets.js
