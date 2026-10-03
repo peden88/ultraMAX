@@ -489,8 +489,7 @@ Rules:
     }
 
     const data = JSON.parse(raw);
-    let text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("
-").trim() || "";
+    let text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("\\n").trim() || "";
     text = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
 
     const rows = JSON.parse(text);
