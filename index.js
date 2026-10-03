@@ -130,7 +130,25 @@ builder.defineMetaHandler(async ({ type, id }) => {
 const addonInterface = builder.getInterface();
 const app = express();
 app.set("trust proxy", process.env.TRUST_PROXY || "loopback, linklocal, uniquelocal");
-app.use((req, res, next) => { res.setHeader("Access-Control-Allow-Origin", "*"); res.setHeader("Access-Control-Allow-Headers", "*"); res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS"); if (req.method === "OPTIONS") return res.sendStatus(200); next(); });
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowed = new Set((process.env.ULTRAMAX_ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean));
+  const sameOrigin = !origin || (() => { try { return new URL(origin).host === req.get('host'); } catch { return false; } })();
+  const publicAddonRoute = /^\/c\/[^/]+\/(?:manifest\.json|(?:catalog|meta|stream)\/|collections\.json)/.test(req.path)
+    || /^\/(?:manifest\.json|catalog\/|meta\/|stream\/)/.test(req.path);
+  if (publicAddonRoute) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  } else if (origin && (sameOrigin || allowed.has(origin))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  } else if (origin && !sameOrigin) {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
 app.use(express.json());
 registerCatalogRoutes(app, catalogRouteDeps);
 registerConfigRoutes(app, {
