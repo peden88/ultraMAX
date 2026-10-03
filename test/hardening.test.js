@@ -57,3 +57,17 @@ test('secret storage encrypts service binding credentials', () => {
   assert.equal(redactConfig(input).services.aiostreams.password, undefined);
   if (oldKey === undefined) delete process.env.ULTRAMAX_ENCRYPTION_KEY; else process.env.ULTRAMAX_ENCRYPTION_KEY = oldKey;
 });
+
+
+test('AIOStreams provisioning overlays service credentials without replacing baseline', () => {
+  const old = process.env.AIOSTREAMS_PROVISIONING_CONFIG_JSON;
+  process.env.AIOSTREAMS_PROVISIONING_CONFIG_JSON = JSON.stringify({
+    addons: [{ instanceId: 'standard-addon' }],
+    services: [{ id: 'torbox', enabled: true, credentials: {} }]
+  });
+  const { aioStreamsConfig } = require('../services/provisioning-service');
+  const config = aioStreamsConfig({}, { torbox: { apiKey: 'tb-secret' } });
+  assert.equal(config.addons[0].instanceId, 'standard-addon');
+  assert.equal(config.services[0].credentials.apiKey, 'tb-secret');
+  if (old === undefined) delete process.env.AIOSTREAMS_PROVISIONING_CONFIG_JSON; else process.env.AIOSTREAMS_PROVISIONING_CONFIG_JSON = old;
+});
