@@ -32,3 +32,28 @@ test('AIOStreams template policy separates baseline from user credentials', () =
   assert.ok(ownership.templateOwns.includes('sorting'));
   assert.ok(ownership.userOwns.includes('serviceCredentials'));
 });
+
+
+test('provisioning config deep merge preserves baseline and overlays user values', () => {
+  const { deepMerge } = require('../services/provisioning-service');
+  const merged = deepMerge(
+    { sorting: { enabled: true, direction: 'desc' }, addons: [{ id: 'standard' }] },
+    { sorting: { direction: 'asc' } }
+  );
+  assert.equal(merged.sorting.enabled, true);
+  assert.equal(merged.sorting.direction, 'asc');
+  assert.equal(merged.addons[0].id, 'standard');
+});
+
+test('secret storage encrypts service binding credentials', () => {
+  const oldKey = process.env.ULTRAMAX_ENCRYPTION_KEY;
+  process.env.ULTRAMAX_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64');
+  delete require.cache[require.resolve('../utils/secrets')];
+  const { protectConfig, revealConfig, redactConfig } = require('../utils/secrets');
+  const input = { services: { version: 1, aiostreams: { service:'aiostreams', status:'ready', uuid:'u', password:'p', encryptedPassword:'ep', baseUrl:'https://example.com' } } };
+  const stored = protectConfig(input);
+  assert.match(stored.services.aiostreams.password, /^enc:v1:/);
+  assert.equal(revealConfig(stored).services.aiostreams.password, 'p');
+  assert.equal(redactConfig(input).services.aiostreams.password, undefined);
+  if (oldKey === undefined) delete process.env.ULTRAMAX_ENCRYPTION_KEY; else process.env.ULTRAMAX_ENCRYPTION_KEY = oldKey;
+});
