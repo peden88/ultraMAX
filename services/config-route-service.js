@@ -2,13 +2,12 @@ function registerConfigRoutes(app, deps) {
   const {
     loadConfigs,
     saveConfigs,
-    hashPassword,
-    generateToken,
+    hashPassword,\n    verifyPassword,\n    generateToken,
     rateLimit
   } = deps;
 
   app.post("/c/create", (req, res) => {
-    const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const ip = req.ip || req.socket.remoteAddress;
 
     if (rateLimit(ip, 5, 60000)) {
       return res.status(429).json({ error: "Too many requests." });
@@ -105,11 +104,7 @@ function registerConfigRoutes(app, deps) {
       });
     }
 
-    if (configs[token].passwordHash !== hashPassword(password)) {
-      return res.status(401).json({
-        error: "Incorrect password"
-      });
-    }
+    const passwordCheck = verifyPassword(password, configs[token].passwordHash);\n    if (!passwordCheck.ok) {\n      return res.status(401).json({ error: "Incorrect password" });\n    }\n    if (passwordCheck.needsUpgrade) configs[token].passwordHash = hashPassword(password);
 
     configs[token].catalogs = catalogs !== undefined ? catalogs : (configs[token].catalogs || []);
     configs[token].language = language || configs[token].language || "en-US";
@@ -160,7 +155,7 @@ function registerConfigRoutes(app, deps) {
     res.json({ token });
   });
 
-  app.get("/c/:token/config", (req, res) => {
+  app.post("/c/:token/config", (req, res) => {
     const { token } = req.params;
     const configs = loadConfigs();
 
@@ -170,8 +165,7 @@ function registerConfigRoutes(app, deps) {
       });
     }
 
-    res.json({
-      catalogs: configs[token].catalogs,
+    const passwordCheck = verifyPassword(req.body?.password, configs[token].passwordHash);\n    if (!passwordCheck.ok) return res.status(401).json({ error: "Incorrect password" });\n    if (passwordCheck.needsUpgrade) { configs[token].passwordHash = hashPassword(req.body.password); saveConfigs(configs); }\n\n    res.json({\n      catalogs: configs[token].catalogs,
       mdblistKey: configs[token].mdblistKey,
       language: configs[token].language,
       rpdbKey: configs[token].rpdbKey,
@@ -260,7 +254,7 @@ function registerConfigRoutes(app, deps) {
       });
     }
 
-    const { collections, replace } = req.body;
+    const passwordCheck = verifyPassword(req.body?.password, configs[token].passwordHash);\n    if (!passwordCheck.ok) return res.status(401).json({ error: "Incorrect password" });\n    if (passwordCheck.needsUpgrade) configs[token].passwordHash = hashPassword(req.body.password);\n\n    const { collections, replace } = req.body;
 
     if (!Array.isArray(collections)) {
       return res.status(400).json({
