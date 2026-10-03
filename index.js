@@ -38,6 +38,8 @@ const { registerConfigRoutes } = require("./services/config-route-service");
 const { handleCatalog: handleCatalogService } = require("./services/catalog-handler-service");
 const { registerCatalogRoutes } = require("./services/catalog-route-service");
 const { registerStatsRoutes } = require("./services/stats-route-service");
+const { registerProvisioningRoutes } = require("./services/provisioning-route-service");
+const { fetchAioStreams, fetchAioMetadata } = require("./services/provider-client");
 
 if (!TMDB_KEY) { console.error("TMDB_KEY missing - exiting"); process.exit(1); }
 
@@ -142,6 +144,13 @@ registerConfigRoutes(app, {
 
 registerStatsRoutes(app, {
   loadConfigs
+});
+registerProvisioningRoutes(app, {
+  loadConfigs,
+  saveConfigs,
+  verifyPassword,
+  hashPassword,
+  rateLimit
 });
 
 // ================================
@@ -522,13 +531,19 @@ app.get("/c/:token/manifest.json", (req, res) =>
   })
 );
 
-app.get("/c/:token/meta/:type/:id.json", (req, res) =>
-  handleConfiguredMeta(req, res, {
-    loadConfigs,
-    fetchCached,
-    TMDB_KEY
-  })
-);
+app.get("/c/:token/meta/:type/:id.json", async (req, res) => {
+  const config = loadConfigs()[req.params.token];
+  const binding = config?.services?.aiometadata;
+  if (binding?.status === 'ready' && binding?.uuid) {
+    try {
+      const result = await fetchAioMetadata({ binding, type: req.params.type, id: req.params.id });
+      return res.json(result);
+    } catch (error) {
+      console.warn('AIOMetadata proxy failed; using UltraMAX fallback:', error?.message || error);
+    }
+  }
+  return handleConfiguredMeta(req, res, { loadConfigs, fetchCached, TMDB_KEY });
+});
 
 app.get("/meta/:type/:id.json", async (req, res) => {
   const { type, id } = req.params;
@@ -553,10 +568,18 @@ app.get("/stream/:type/:id.json", async (req, res) => {
 
 app.get("/c/:token/stream/:type/:id.json", async (req, res) => {
   const { token, type, id } = req.params;
-  const configs = loadConfigs();
-  const config = configs[token];
-
+  const config = loadConfigs()[token];
   if (!config) return res.json({ streams: [] });
+
+  const binding = config.services?.aiostreams;
+  if (binding?.status === 'ready' && binding?.uuid && binding?.encryptedPassword) {
+    try {
+      const result = await fetchAioStreams({ binding, type, id });
+      return res.json(result);
+    } catch (error) {
+      console.warn('AIOStreams proxy failed; trying legacy stream providers:', error?.message || error);
+    }
+  }
 
   const result = await streamBridgeResponse(config.streamAddons || [], type, id);
   res.json(result);
