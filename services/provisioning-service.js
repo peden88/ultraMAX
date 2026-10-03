@@ -18,18 +18,27 @@ function deepMerge(base, overlay) {
   return out;
 }
 
-function aioStreamsConfig(userOverlay = {}) {
+function aioStreamsConfig(userOverlay = {}, serviceCredentials = {}) {
   // The canonical UltraMAX template is represented as resolved UserData JSON for
   // API provisioning. AIOSTREAMS_TEMPLATE_URL/ID remains metadata/version policy;
   // dynamic template UI expressions are intentionally not evaluated in UltraMAX.
-  return deepMerge(parseJsonEnv('AIOSTREAMS_PROVISIONING_CONFIG_JSON', {}), userOverlay || {});
+  const merged = deepMerge(parseJsonEnv('AIOSTREAMS_PROVISIONING_CONFIG_JSON', {}), userOverlay || {});
+  const credentialServices = Object.entries(serviceCredentials || {})
+    .filter(([, credentials]) => credentials && typeof credentials === 'object' && Object.values(credentials).some(Boolean))
+    .map(([id, credentials]) => ({ id, enabled: true, credentials: Object.fromEntries(Object.entries(credentials).filter(([, value]) => value != null && value !== '')) }));
+  if (credentialServices.length) {
+    const byId = new Map((merged.services || []).map(service => [service.id, service]));
+    for (const service of credentialServices) byId.set(service.id, deepMerge(byId.get(service.id) || {}, service));
+    merged.services = Array.from(byId.values());
+  }
+  return merged;
 }
 
 function aioMetadataConfig(userOverlay = {}) {
   return deepMerge(parseJsonEnv('AIOMETADATA_PROVISIONING_CONFIG_JSON', { apiKeys: {} }), userOverlay || {});
 }
 
-async function provisionUserServices({ token, userSecret, existing = {}, aiostreamsConfig, aiometadataConfig }) {
+async function provisionUserServices({ token, userSecret, existing = {}, aiostreamsConfig, aiometadataConfig, serviceCredentials = {} }) {
   if (!userSecret || String(userSecret).length < 2) throw new Error('A user services secret is required');
   const template = getAioStreamsTemplatePolicy();
   const now = new Date().toISOString();
@@ -39,12 +48,12 @@ async function provisionUserServices({ token, userSecret, existing = {}, aiostre
   if (existing.aiostreams?.uuid && existing.aiostreams?.password) {
     result.aiostreams = await providers.updateAioStreamsUser({
       binding: existing.aiostreams,
-      config: aioStreamsConfig(aiostreamsConfig)
+      config: aioStreamsConfig(aiostreamsConfig, serviceCredentials)
     });
   } else {
     result.aiostreams = await providers.createAioStreamsUser({
       password: streamPassword,
-      config: aioStreamsConfig(aiostreamsConfig)
+      config: aioStreamsConfig(aiostreamsConfig, serviceCredentials)
     });
   }
   result.aiostreams.templateId = template.id;
