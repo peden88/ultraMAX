@@ -27,7 +27,7 @@ test('AIOStreams template policy separates baseline from user credentials', () =
   const { getAioStreamsTemplatePolicy, describeTemplateOwnership } = require('../services/aiostreams-template-policy');
   const policy = getAioStreamsTemplatePolicy();
   const ownership = describeTemplateOwnership();
-  assert.equal(policy.id, process.env.AIOSTREAMS_TEMPLATE_ID || 'ultramax.standard');
+  assert.equal(policy.id, process.env.AIOSTREAMS_TEMPLATE_ID || 'tamtaro.complete');
   assert.ok(ownership.templateOwns.includes('filters'));
   assert.ok(ownership.templateOwns.includes('sorting'));
   assert.ok(ownership.userOwns.includes('serviceCredentials'));
@@ -59,15 +59,38 @@ test('secret storage encrypts service binding credentials', () => {
 });
 
 
-test('AIOStreams provisioning overlays service credentials without replacing baseline', () => {
-  const old = process.env.AIOSTREAMS_PROVISIONING_CONFIG_JSON;
-  process.env.AIOSTREAMS_PROVISIONING_CONFIG_JSON = JSON.stringify({
-    addons: [{ instanceId: 'standard-addon' }],
-    services: [{ id: 'torbox', enabled: true, credentials: {} }]
-  });
-  const { aioStreamsConfig } = require('../services/provisioning-service');
-  const config = aioStreamsConfig({}, { torbox: { apiKey: 'tb-secret' } });
-  assert.equal(config.addons[0].instanceId, 'standard-addon');
-  assert.equal(config.services[0].credentials.apiKey, 'tb-secret');
-  if (old === undefined) delete process.env.AIOSTREAMS_PROVISIONING_CONFIG_JSON; else process.env.AIOSTREAMS_PROVISIONING_CONFIG_JSON = old;
+
+test('template resolver applies defaults, conditionals and service credentials', () => {
+  const { resolveTemplate } = require('../services/template-resolver');
+  const template = {
+    metadata: { id:'t', inputs:[
+      {id:'limit',type:'number',default:10},
+      {id:'quality',type:'select',default:'high'}
+    ]},
+    config: {
+      resultLimits:{global:'{{inputs.limit}}'},
+      values:[{__if:'inputs.quality == high',__value:'keep'},{__if:'inputs.quality == low',__value:'drop'}],
+      services:[{id:'torbox',credentials:{apiKey:'{{services.torbox.apiKey}}'}}]
+    }
+  };
+  const out=resolveTemplate(template,{serviceCredentials:{torbox:{apiKey:'secret'}}});
+  assert.equal(out.config.resultLimits.global,10);
+  assert.deepEqual(out.config.values,['keep']);
+  assert.equal(out.config.services[0].credentials.apiKey,'secret');
+});
+
+test('server credentials prefer user values and never expose the server value via capability', () => {
+  const old=process.env.OMDB_KEY; process.env.OMDB_KEY='server-secret';
+  const { resolveCredential, capability } = require('../services/server-credentials');
+  assert.deepEqual(resolveCredential('omdb','user-secret'),{value:'user-secret',source:'user',available:true});
+  assert.deepEqual(capability('omdb',''),{available:true,source:'server'});
+  assert.equal(JSON.stringify(capability('omdb','')).includes('server-secret'),false);
+  if(old===undefined)delete process.env.OMDB_KEY;else process.env.OMDB_KEY=old;
+});
+
+test('Peden template is the default provisioning baseline', () => {
+  const { getAioStreamsTemplatePolicy } = require('../services/aiostreams-template-policy');
+  const policy=getAioStreamsTemplatePolicy();
+  assert.equal(policy.sourceUrl,process.env.AIOSTREAMS_TEMPLATE_URL||'https://templates.peden88.stream/complete.json');
+  assert.equal(policy.id,process.env.AIOSTREAMS_TEMPLATE_ID||'tamtaro.complete');
 });
