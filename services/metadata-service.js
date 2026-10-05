@@ -6,7 +6,7 @@ const certCache = new Map();
 const CERT_TTL = 7 * 24 * 60 * 60 * 1000;
 const imdbTmdbCache = new Map();
 const FILTER_ENABLED = process.env.FILTER_MODE !== "off";
-const MDBLIST_KEYS = ( process.env.MDBLIST_KEYS || process.env.MDBLIST_KEY || "5woimia0xf19uqr4rd7wl1960" ).split(",").map(k => k.trim()).filter(Boolean);
+const { serverValues } = require('./server-credentials');
 
 async function getImdbId(tmdbId, type) {
   const key = `${type}-${tmdbId}`;
@@ -193,7 +193,7 @@ async function resultsToMetas(arr, type, filterLang = FILTER_ENABLED, language =
 }
 
 async function mdblistToMetas(listId, type, mdbKey, rpdbKey = null, tpKey = null, maxRating = null, fanartKey = null, omdbKey = null) {
-  const tryKeys = mdbKey ? [mdbKey] : MDBLIST_KEYS;
+  const tryKeys = mdbKey ? [mdbKey] : serverValues('mdblist');
   let data = null;
   for (const key of tryKeys) {
     const url = `https://mdblist.com/api/lists/${listId}/items/?apikey=${key}&limit=100&type=${type ==="series" ?"show" :"movie"}`;
