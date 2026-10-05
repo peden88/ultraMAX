@@ -24,12 +24,12 @@ function condition(raw, inputs, services) {
   }
   const neg=text.startsWith('!'), expr=neg?text.slice(1).trim():text;
   let result=false;
-  const num=expr.match(/^(\\w+)\\.(.+?)\\s+(>=|<=|>|<)\\s+(-?\\d+(?:\\.\\d+)?)$/);
+  const num=expr.match(/^(\w+)\.(.+?)\s+(>=|<=|>|<)\s+(-?\d+(?:\.\d+)?)$/);
   if(num && num[1]==='inputs'){
     const l=Number(nested(inputs,num[2])),r=Number(num[4]);
     if(Number.isFinite(l)) result=num[3]==='>='?l>=r:num[3]==='<='?l<=r:num[3]==='>'?l>r:l<r;
   } else {
-    const cmp=expr.match(/^(\\w+)\\.(.+?)\\s+(==|!=|includes)\\s+(.+)$/);
+    const cmp=expr.match(/^(\w+)\.(.+?)\s+(==|!=|includes)\s+(.+)$/);
     if(cmp && cmp[1]==='inputs'){
       const l=nested(inputs,cmp[2]), r=cmp[4].trim();
       result=cmp[3]==='=='?String(l??'')===r:cmp[3]==='!='?String(l??'')!==r:Array.isArray(l)?l.includes(r):typeof l==='string'&&l.includes(r);
@@ -61,14 +61,14 @@ function apply(value, inputs, services) {
   }
   if(typeof value==='string'){
     if(value==='{{services}}')return services.slice();
-    const single=value.match(/^\\{\\{(inputs|services)\\.([^}]+)\\}\\}$/);
+    const single=value.match(/^\{\{(inputs|services)\.([^}]+)\}\}$/);
     if(single){if(single[1]==='inputs'){const v=nested(inputs,single[2]);return v??'';}if(single[2].includes('.'))return value;return services.includes(single[2]);}
-    return value.replace(/\\{\\{services\\}\\}/g,services.join(',')).replace(/\\{\\{(inputs|services)\\.([^}]+)\\}\\}/g,(_,ns,key)=>ns==='inputs'?String(nested(inputs,key)??''):key.includes('.')?`{{services.${key}}}`:String(services.includes(key)));
+    return value.replace(/\{\{services\}\}/g,services.join(',')).replace(/\{\{(inputs|services)\.([^}]+)\}\}/g,(_,ns,key)=>ns==='inputs'?String(nested(inputs,key)??''):key.includes('.')?`{{services.${key}}}`:String(services.includes(key)));
   }
   return value;
 }
 function resolveCredentialRefs(value, credentials={}) {
-  if(typeof value==='string') return value.replace(/\\{\\{services\\.(\\w[\\w-]*)\\.(\\w[\\w-]*)\\}\\}/g,(_,sid,key)=>credentials[sid]?.[key]??'');
+  if(typeof value==='string') return value.replace(/\{\{services\.(\w[\w-]*)\.(\w[\w-]*)\}\}/g,(_,sid,key)=>credentials[sid]?.[key]??'');
   if(Array.isArray(value)) return value.map(v=>resolveCredentialRefs(v,credentials));
   if(value&&typeof value==='object') return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,resolveCredentialRefs(v,credentials)]));
   return value;
