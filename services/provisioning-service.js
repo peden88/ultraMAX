@@ -35,25 +35,35 @@ async function aioStreamsConfig(userOverlay={},serviceCredentials={}) {
 function aioMetadataConfig(userOverlay={}) {
   return deepMerge(parseJsonEnv('AIOMETADATA_PROVISIONING_CONFIG_JSON',{apiKeys:{}}),userOverlay||{});
 }
-async function provisionUserServices({token,userSecret,existing={},aiostreamsConfig,aiometadataConfig,serviceCredentials={}}) {
+async function provisionAioStreams({token,userSecret,existing,aiostreamsConfig,serviceCredentials={}}) {
   if(!userSecret||String(userSecret).length<2)throw new Error('A user services secret is required');
-  const templatePolicy=getAioStreamsTemplatePolicy(), template=await loadAioStreamsTemplate();
-  const streamConfig=await aioStreamsConfig(aiostreamsConfig,serviceCredentials);
-  const now=new Date().toISOString();
+  const templatePolicy=getAioStreamsTemplatePolicy(),template=await loadAioStreamsTemplate();
+  const config=await aioStreamsConfig(aiostreamsConfig,serviceCredentials);
+  const password=deriveServicePassword({token,userSecret,service:'aiostreams'});
+  const canUpdate=existing?.uuid&&existing?.password;
+  const binding=canUpdate
+    ?await providers.updateAioStreamsUser({binding:existing,config})
+    :await providers.createAioStreamsUser({password,config});
+  binding.templateId=template.metadata.id||templatePolicy.id;
+  binding.templateVersion=template.metadata.version||templatePolicy.version;
+  binding.provisionedAt=existing?.provisionedAt||new Date().toISOString();
+  return binding;
+}
+async function provisionAioMetadata({token,userSecret,existing,aiometadataConfig}) {
+  if(!userSecret||String(userSecret).length<2)throw new Error('A user services secret is required');
+  const config=aioMetadataConfig(aiometadataConfig);
+  const password=deriveServicePassword({token,userSecret,service:'aiometadata'});
+  const canUpdate=existing?.uuid&&existing?.password;
+  const binding=canUpdate
+    ?await providers.updateAioMetadataUser({binding:existing,config})
+    :await providers.createAioMetadataUser({password,config});
+  binding.provisionedAt=existing?.provisionedAt||new Date().toISOString();
+  return binding;
+}
+async function provisionUserServices({token,userSecret,existing={},aiostreamsConfig,aiometadataConfig,serviceCredentials={}}) {
   const result={version:1,secretFingerprint:fingerprintSecret({token,userSecret})};
-  const streamPassword=deriveServicePassword({token,userSecret,service:'aiostreams'});
-  result.aiostreams=existing.aiostreams?.uuid&&existing.aiostreams?.password
-    ?await providers.updateAioStreamsUser({binding:existing.aiostreams,config:streamConfig})
-    :await providers.createAioStreamsUser({password:streamPassword,config:streamConfig});
-  result.aiostreams.templateId=template.metadata.id||templatePolicy.id;
-  result.aiostreams.templateVersion=template.metadata.version||templatePolicy.version;
-  result.aiostreams.provisionedAt=existing.aiostreams?.provisionedAt||now;
-
-  const metadataPassword=deriveServicePassword({token,userSecret,service:'aiometadata'});
-  result.aiometadata=existing.aiometadata?.uuid&&existing.aiometadata?.password
-    ?await providers.updateAioMetadataUser({binding:existing.aiometadata,config:aioMetadataConfig(aiometadataConfig)})
-    :await providers.createAioMetadataUser({password:metadataPassword,config:aioMetadataConfig(aiometadataConfig)});
-  result.aiometadata.provisionedAt=existing.aiometadata?.provisionedAt||now;
+  result.aiostreams=await provisionAioStreams({token,userSecret,existing:existing.aiostreams,aiostreamsConfig,serviceCredentials});
+  result.aiometadata=await provisionAioMetadata({token,userSecret,existing:existing.aiometadata,aiometadataConfig});
   return result;
 }
-module.exports={provisionUserServices,deepMerge,aioStreamsConfig,aioMetadataConfig};
+module.exports={provisionUserServices,provisionAioStreams,provisionAioMetadata,deepMerge,aioStreamsConfig,aioMetadataConfig};
