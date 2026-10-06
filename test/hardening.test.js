@@ -94,3 +94,18 @@ test('Peden template is the default provisioning baseline', () => {
   assert.equal(policy.sourceUrl,process.env.AIOSTREAMS_TEMPLATE_URL||'https://templates.peden88.stream/complete.json');
   assert.equal(policy.id,process.env.AIOSTREAMS_TEMPLATE_ID||'tamtaro.complete');
 });
+
+test('AIOMetadata server API defaults fill missing user credentials but user values win', () => {
+  const old=process.env.TMDB_KEY; process.env.TMDB_KEY='server-tmdb';
+  delete require.cache[require.resolve('../services/provisioning-service')];
+  const { aioMetadataConfig }=require('../services/provisioning-service');
+  assert.equal(aioMetadataConfig({apiKeys:{}}).apiKeys.tmdb,'server-tmdb');
+  assert.equal(aioMetadataConfig({apiKeys:{tmdb:'user-tmdb'}}).apiKeys.tmdb,'user-tmdb');
+  if(old===undefined)delete process.env.TMDB_KEY;else process.env.TMDB_KEY=old;
+});
+
+test('public service bindings never expose backend credentials or URLs', () => {
+  const { publicBinding }=require('../services/user-services');
+  const out=publicBinding({service:'aiostreams',status:'ready',uuid:'u',password:'p',encryptedPassword:'ep',manifestUrl:'secret-url',baseUrl:'internal-url'});
+  assert.deepEqual(out,{service:'aiostreams',status:'ready',uuid:'u',templateId:null,templateVersion:null,provisionedAt:null,updatedAt:null});
+});
