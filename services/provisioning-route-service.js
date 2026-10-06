@@ -59,6 +59,24 @@ function registerProvisioningRoutes(app, deps) {
     res.json({ok:true,services});
   });
 
+  app.post('/c/:token/services/check', async (req,res)=>{
+    const {token}=req.params,configs=loadConfigs(),config=configs[token];
+    if(!config)return res.status(404).json({error:'Config not found'});
+    const check=verifyPassword(req.body?.password,config.passwordHash);
+    if(!check.ok)return res.status(401).json({error:'Incorrect password'});
+    const out={};
+    for(const service of ['aiostreams','aiometadata']){
+      const binding=config.services?.[service];
+      if(!binding?.uuid){out[service]={status:'unprovisioned'};continue;}
+      try{
+        if(service==='aiostreams')await require('./provider-client').checkAioStreams({binding});
+        else await require('./provider-client').checkAioMetadata({binding});
+        out[service]={status:'ready'};
+      }catch(error){out[service]={status:'unreachable',providerStatus:error?.status||null};}
+    }
+    res.json(out);
+  });
+
   app.post('/c/:token/services/status', (req, res) => {
     const { token } = req.params;
     const configs = loadConfigs();
