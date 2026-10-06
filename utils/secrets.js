@@ -26,7 +26,7 @@ function decrypt(value) {
 }
 
 const SECRET_FIELDS = new Set(['mdbKey','mdblistKey','rpdbKey','tpKey','googleAiKey','fanartKey','omdbKey','traktAccessToken','traktRefreshToken','simklAccessToken']);
-const BINDING_SECRET_FIELDS = ['password','encryptedPassword','manifestUrl','baseUrl'];
+const BINDING_SECRET_FIELDS = ['password','encryptedPassword','manifestUrl','baseUrl','secretFingerprint'];
 
 function mapBinding(binding, fn) {
   if (!binding || typeof binding !== 'object') return binding;
