@@ -1,6 +1,6 @@
 'use strict';
 
-const { provisionUserServices } = require('./provisioning-service');
+const { provisionAioStreams, provisionAioMetadata } = require('./provisioning-service');
 const { publicBinding } = require('./user-services');
 
 function registerProvisioningRoutes(app, deps) {
@@ -19,32 +19,44 @@ function registerProvisioningRoutes(app, deps) {
     if (!check.ok) return res.status(401).json({ error: 'Incorrect password' });
     if (check.needsUpgrade) config.passwordHash = hashPassword(req.body.password);
 
+    const userSecret=req.body?.userSecret;
+    if(!userSecret||String(userSecret).length<2)return res.status(400).json({error:'A user services secret is required'});
+    config.services=config.services||{version:1};
+    const failures=[];
+    const checkpoint=async(service,binding)=>{
+      config.services.version=1;
+      config.services[service]=binding;
+      config.updatedAt=new Date().toISOString();
+      await saveConfigs(configs);
+    };
+
     try {
-      const services = await provisionUserServices({
-        token,
-        userSecret: req.body?.userSecret,
-        existing: config.services || {},
-        aiostreamsConfig: req.body?.aiostreamsConfig || {},
-        aiometadataConfig: req.body?.aiometadataConfig || {},
-        serviceCredentials: req.body?.serviceCredentials || {}
-      });
-      config.services = services;
-      config.updatedAt = new Date().toISOString();
-      saveConfigs(configs);
-      res.json({
-        ok: true,
-        services: {
-          aiostreams: publicBinding(services.aiostreams),
-          aiometadata: publicBinding(services.aiometadata)
-        }
-      });
-    } catch (error) {
-      console.error('Service provisioning failed:', error?.message || error);
-      res.status(error?.status >= 400 && error?.status < 500 ? 502 : 500).json({
-        error: 'Backend service provisioning failed',
-        serviceStatus: error?.status || null
-      });
+      await checkpoint('aiostreams',await provisionAioStreams({
+        token,userSecret,existing:config.services.aiostreams,
+        aiostreamsConfig:req.body?.aiostreamsConfig||{},
+        serviceCredentials:req.body?.serviceCredentials||{}
+      }));
+    } catch(error) {
+      console.error('AIOStreams provisioning failed:',error?.message||error);
+      failures.push({service:'aiostreams',status:error?.status||null});
     }
+
+    try {
+      await checkpoint('aiometadata',await provisionAioMetadata({
+        token,userSecret,existing:config.services.aiometadata,
+        aiometadataConfig:req.body?.aiometadataConfig||{}
+      }));
+    } catch(error) {
+      console.error('AIOMetadata provisioning failed:',error?.message||error);
+      failures.push({service:'aiometadata',status:error?.status||null});
+    }
+
+    const services={
+      aiostreams:publicBinding(config.services.aiostreams),
+      aiometadata:publicBinding(config.services.aiometadata)
+    };
+    if(failures.length)return res.status(502).json({ok:false,error:'One or more backend services failed to provision',failures,services});
+    res.json({ok:true,services});
   });
 
   app.post('/c/:token/services/status', (req, res) => {
