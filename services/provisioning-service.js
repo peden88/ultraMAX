@@ -33,7 +33,15 @@ async function aioStreamsConfig(userOverlay={},serviceCredentials={}) {
   return merged;
 }
 function aioMetadataConfig(userOverlay={}) {
-  return deepMerge(parseJsonEnv('AIOMETADATA_PROVISIONING_CONFIG_JSON',{apiKeys:{}}),userOverlay||{});
+  const { resolveCredential }=require('./server-credentials');
+  const merged=deepMerge(parseJsonEnv('AIOMETADATA_PROVISIONING_CONFIG_JSON',{apiKeys:{}}),userOverlay||{});
+  merged.apiKeys=merged.apiKeys||{};
+  const map={tmdb:'tmdb',tvdb:'tvdb',fanart:'fanart',omdb:'omdb',mdblist:'mdblist',rpdb:'rpdb'};
+  for(const [field,name] of Object.entries(map)){
+    const resolved=resolveCredential(name,merged.apiKeys[field]);
+    if(resolved.available)merged.apiKeys[field]=resolved.value;
+  }
+  return merged;
 }
 async function provisionAioStreams({token,userSecret,existing,aiostreamsConfig,serviceCredentials={}}) {
   if(!userSecret||String(userSecret).length<2)throw new Error('A user services secret is required');
