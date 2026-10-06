@@ -48,10 +48,12 @@ async function provisionAioStreams({token,userSecret,existing,aiostreamsConfig,s
   const templatePolicy=getAioStreamsTemplatePolicy(),template=await loadAioStreamsTemplate();
   const config=await aioStreamsConfig(aiostreamsConfig,serviceCredentials);
   const password=deriveServicePassword({token,userSecret,service:'aiostreams'});
-  const canUpdate=existing?.uuid&&existing?.password;
+  const fingerprint=fingerprintSecret({token,userSecret});
+  const canUpdate=existing?.uuid&&existing?.password&&(!existing.secretFingerprint||existing.secretFingerprint===fingerprint);
   const binding=canUpdate
     ?await providers.updateAioStreamsUser({binding:existing,config})
     :await providers.createAioStreamsUser({password,config});
+  binding.secretFingerprint=fingerprint;
   binding.templateId=template.metadata.id||templatePolicy.id;
   binding.templateVersion=template.metadata.version||templatePolicy.version;
   binding.provisionedAt=existing?.provisionedAt||new Date().toISOString();
@@ -61,10 +63,12 @@ async function provisionAioMetadata({token,userSecret,existing,aiometadataConfig
   if(!userSecret||String(userSecret).length<2)throw new Error('A user services secret is required');
   const config=aioMetadataConfig(aiometadataConfig);
   const password=deriveServicePassword({token,userSecret,service:'aiometadata'});
-  const canUpdate=existing?.uuid&&existing?.password;
+  const fingerprint=fingerprintSecret({token,userSecret});
+  const canUpdate=existing?.uuid&&existing?.password&&(!existing.secretFingerprint||existing.secretFingerprint===fingerprint);
   const binding=canUpdate
     ?await providers.updateAioMetadataUser({binding:existing,config})
     :await providers.createAioMetadataUser({password,config});
+  binding.secretFingerprint=fingerprint;
   binding.provisionedAt=existing?.provisionedAt||new Date().toISOString();
   return binding;
 }
