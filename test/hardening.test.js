@@ -109,3 +109,15 @@ test('public service bindings never expose backend credentials or URLs', () => {
   const out=publicBinding({service:'aiostreams',status:'ready',uuid:'u',password:'p',encryptedPassword:'ep',manifestUrl:'secret-url',baseUrl:'internal-url'});
   assert.deepEqual(out,{service:'aiostreams',status:'ready',uuid:'u',templateId:null,templateVersion:null,provisionedAt:null,updatedAt:null});
 });
+
+test('service secret fingerprints are encrypted with backend bindings', () => {
+  const old=process.env.ULTRAMAX_ENCRYPTION_KEY;
+  process.env.ULTRAMAX_ENCRYPTION_KEY=Buffer.alloc(32,7).toString('base64');
+  delete require.cache[require.resolve('../utils/secrets')];
+  const { protectConfig,revealConfig }=require('../utils/secrets');
+  const input={services:{version:1,aiostreams:{service:'aiostreams',secretFingerprint:'fp-secret'}}};
+  const stored=protectConfig(input);
+  assert.match(stored.services.aiostreams.secretFingerprint,/^enc:v1:/);
+  assert.equal(revealConfig(stored).services.aiostreams.secretFingerprint,'fp-secret');
+  if(old===undefined)delete process.env.ULTRAMAX_ENCRYPTION_KEY;else process.env.ULTRAMAX_ENCRYPTION_KEY=old;
+});
