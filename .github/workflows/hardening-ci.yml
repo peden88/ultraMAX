@@ -1,0 +1,32 @@
+name: Hardening CI
+on:
+  push:
+    branches: [ultramax-hardening]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Check all tracked JavaScript syntax
+        run: git ls-files -z -- '*.js' | xargs -0 -r -n 1 node --check
+      - run: node --check index.js
+      - run: node --check services/stream-bridge.js
+      - run: node --check services/stream-wizard-service.js
+      - run: node --check services/template-resolver.js
+      - run: node --check services/aiostreams-template-policy.js
+      - run: node --check services/config-route-service.js
+      - run: node --check services/provider-client.js
+      - run: node --check services/provisioning-service.js
+      - run: node --check services/provisioning-route-service.js
+      - run: node --check utils/service-credentials.js
+      - run: node --check utils/secrets.js

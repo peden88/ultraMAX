@@ -3,12 +3,13 @@ function registerConfigRoutes(app, deps) {
     loadConfigs,
     saveConfigs,
     hashPassword,
+    verifyPassword,
     generateToken,
     rateLimit
   } = deps;
 
   app.post("/c/create", (req, res) => {
-    const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const ip = req.ip || req.socket.remoteAddress;
 
     if (rateLimit(ip, 5, 60000)) {
       return res.status(429).json({ error: "Too many requests." });
@@ -105,11 +106,11 @@ function registerConfigRoutes(app, deps) {
       });
     }
 
-    if (configs[token].passwordHash !== hashPassword(password)) {
-      return res.status(401).json({
-        error: "Incorrect password"
-      });
+    const passwordCheck = verifyPassword(password, configs[token].passwordHash);
+    if (!passwordCheck.ok) {
+      return res.status(401).json({ error: "Incorrect password" });
     }
+    if (passwordCheck.needsUpgrade) configs[token].passwordHash = hashPassword(password);
 
     configs[token].catalogs = catalogs !== undefined ? catalogs : (configs[token].catalogs || []);
     configs[token].language = language || configs[token].language || "en-US";
@@ -160,7 +161,7 @@ function registerConfigRoutes(app, deps) {
     res.json({ token });
   });
 
-  app.get("/c/:token/config", (req, res) => {
+  app.post("/c/:token/config", (req, res) => {
     const { token } = req.params;
     const configs = loadConfigs();
 
@@ -169,6 +170,10 @@ function registerConfigRoutes(app, deps) {
         error: "Not found"
       });
     }
+
+    const passwordCheck = verifyPassword(req.body?.password, configs[token].passwordHash);
+    if (!passwordCheck.ok) return res.status(401).json({ error: "Incorrect password" });
+    if (passwordCheck.needsUpgrade) { configs[token].passwordHash = hashPassword(req.body.password); saveConfigs(configs); }
 
     res.json({
       catalogs: configs[token].catalogs,
@@ -188,7 +193,7 @@ function registerConfigRoutes(app, deps) {
     });
   });
 
-  app.get("/debug/config/:token", (req, res) => {
+  app.post("/debug/config/:token", (req, res) => {
     const { token } = req.params;
     const configs = loadConfigs();
     const config = configs[token];
@@ -200,6 +205,9 @@ function registerConfigRoutes(app, deps) {
         token
       });
     }
+
+    const passwordCheck = verifyPassword(req.body?.password, config.passwordHash);
+    if (!passwordCheck.ok) return res.status(401).json({ ok:false, error:"Incorrect password" });
 
     const redact = value => {
       if (!value) return null;
@@ -259,6 +267,10 @@ function registerConfigRoutes(app, deps) {
         error: "Not found"
       });
     }
+
+    const passwordCheck = verifyPassword(req.body?.password, configs[token].passwordHash);
+    if (!passwordCheck.ok) return res.status(401).json({ error: "Incorrect password" });
+    if (passwordCheck.needsUpgrade) configs[token].passwordHash = hashPassword(req.body.password);
 
     const { collections, replace } = req.body;
 

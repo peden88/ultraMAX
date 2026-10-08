@@ -10,7 +10,7 @@ const { CATALOG_DEFS } = require("./catalogs/catalog-defs");
 const { QUICK_PICK_CATALOGS } = require("./catalogs/quick-picks");
 const { DYNAMIC_CATALOGS } = require("./catalogs/dynamic-catalogs");
 const { loadConfigs, saveConfigs } = require("./utils/config-store");
-const { hashPassword, generateToken } = require("./utils/auth");
+const { hashPassword, verifyPassword, generateToken } = require("./utils/auth");
 const { rateLimit } = require("./utils/rate-limit");
 const { fetchCached, fetchTrakt } = require("./services/api-helpers");
 const { streamBridgeResponse } = require("./services/stream-bridge");
@@ -38,6 +38,8 @@ const { registerConfigRoutes } = require("./services/config-route-service");
 const { handleCatalog: handleCatalogService } = require("./services/catalog-handler-service");
 const { registerCatalogRoutes } = require("./services/catalog-route-service");
 const { registerStatsRoutes } = require("./services/stats-route-service");
+const { registerProvisioningRoutes } = require("./services/provisioning-route-service");
+const { fetchAioStreams, fetchAioMetadata } = require("./services/provider-client");
 
 if (!TMDB_KEY) { console.error("TMDB_KEY missing - exiting"); process.exit(1); }
 
@@ -127,19 +129,46 @@ builder.defineMetaHandler(async ({ type, id }) => {
 
 const addonInterface = builder.getInterface();
 const app = express();
-app.use((req, res, next) => { res.setHeader("Access-Control-Allow-Origin", "*"); res.setHeader("Access-Control-Allow-Headers", "*"); res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS"); if (req.method === "OPTIONS") return res.sendStatus(200); next(); });
+app.set("trust proxy", process.env.TRUST_PROXY || "loopback, linklocal, uniquelocal");
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowed = new Set((process.env.ULTRAMAX_ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean));
+  const sameOrigin = !origin || (() => { try { return new URL(origin).host === req.get('host'); } catch { return false; } })();
+  const publicAddonRoute = /^\/c\/[^/]+\/(?:manifest\.json|(?:catalog|meta|stream)\/|collections\.json)/.test(req.path)
+    || /^\/(?:manifest\.json|catalog\/|meta\/|stream\/)/.test(req.path);
+  if (publicAddonRoute) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  } else if (origin && (sameOrigin || allowed.has(origin))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  } else if (origin && !sameOrigin) {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
 app.use(express.json());
 registerCatalogRoutes(app, catalogRouteDeps);
 registerConfigRoutes(app, {
   loadConfigs,
   saveConfigs,
   hashPassword,
+  verifyPassword,
   generateToken,
   rateLimit
 });
 
 registerStatsRoutes(app, {
   loadConfigs
+});
+registerProvisioningRoutes(app, {
+  loadConfigs,
+  saveConfigs,
+  verifyPassword,
+  hashPassword,
+  rateLimit
 });
 
 // ================================
@@ -329,6 +358,7 @@ document.querySelectorAll('button[data-url]').forEach(function(btn){
 });
 ;
 
+app.get("/", (req, res) => { res.redirect(302, "/configure"); });
 app.get("/configure", (req, res) => { res.setHeader("Cache-Control","public, max-age=300"); res.sendFile(path.join(__dirname,"configure.html")); });
 app.get("/configure/:token", (req, res) => { res.setHeader("Cache-Control","public, max-age=300"); res.sendFile(path.join(__dirname,"configure.html")); });
 app.get("/c/:token/configure", (req, res) => { res.redirect(`/configure/${req.params.token}`); });
@@ -478,7 +508,7 @@ Rules:
     }
 
     const data = JSON.parse(raw);
-    let text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("\n").trim() || "";
+    let text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("\\n").trim() || "";
     text = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
 
     const rows = JSON.parse(text);
@@ -519,13 +549,19 @@ app.get("/c/:token/manifest.json", (req, res) =>
   })
 );
 
-app.get("/c/:token/meta/:type/:id.json", (req, res) =>
-  handleConfiguredMeta(req, res, {
-    loadConfigs,
-    fetchCached,
-    TMDB_KEY
-  })
-);
+app.get("/c/:token/meta/:type/:id.json", async (req, res) => {
+  const config = loadConfigs()[req.params.token];
+  const binding = config?.services?.aiometadata;
+  if (binding?.status === 'ready' && binding?.uuid) {
+    try {
+      const result = await fetchAioMetadata({ binding, type: req.params.type, id: req.params.id });
+      return res.json(result);
+    } catch (error) {
+      console.warn('AIOMetadata proxy failed; using UltraMAX fallback:', error?.message || error);
+    }
+  }
+  return handleConfiguredMeta(req, res, { loadConfigs, fetchCached, TMDB_KEY });
+});
 
 app.get("/meta/:type/:id.json", async (req, res) => {
   const { type, id } = req.params;
@@ -550,10 +586,18 @@ app.get("/stream/:type/:id.json", async (req, res) => {
 
 app.get("/c/:token/stream/:type/:id.json", async (req, res) => {
   const { token, type, id } = req.params;
-  const configs = loadConfigs();
-  const config = configs[token];
-
+  const config = loadConfigs()[token];
   if (!config) return res.json({ streams: [] });
+
+  const binding = config.services?.aiostreams;
+  if (binding?.status === 'ready' && binding?.uuid && binding?.encryptedPassword) {
+    try {
+      const result = await fetchAioStreams({ binding, type, id });
+      return res.json(result);
+    } catch (error) {
+      console.warn('AIOStreams proxy failed; trying legacy stream providers:', error?.message || error);
+    }
+  }
 
   const result = await streamBridgeResponse(config.streamAddons || [], type, id);
   res.json(result);

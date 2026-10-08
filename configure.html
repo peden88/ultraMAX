@@ -1902,6 +1902,14 @@ These are needed to create and manage your Ultra MAX setup.
           <input type="password" id="confirmPassword" placeholder="Confirm Password" autocomplete="new-password" />
         </div>
         <div class="error-msg" id="passError">Passwords do not match</div>
+        <div class="input-row" style="margin-top:10px;">
+          <input type="password" id="userServicesSecret" placeholder="Streams / Metadata Secret (e.g. your name)" autocomplete="off" />
+        </div>
+        <div class="input-hint">Used once to securely derive separate private AIOStreams and AIOMetadata credentials. Ultra MAX does not store this secret.</div>
+        <div class="input-row" style="margin-top:10px;">
+          <input type="password" id="torboxApiKey" placeholder="TorBox API Key (optional)" autocomplete="off" />
+        </div>
+        <div class="input-hint">Passed directly into your provisioned AIOStreams configuration; Ultra MAX does not retain this API key.</div>
       </div>
 
       <div class="divider"></div>
@@ -4979,7 +4987,13 @@ async function loadConfig(){
 
 async function loadConfigByToken(token){
   try{
-    const res = await fetch('/c/' + token + '/config');
+    const loadPassword = (document.getElementById('password') || {}).value || '';
+    if(!loadPassword) throw new Error('Enter your Ultra MAX password before loading this configuration.');
+    const res = await fetch('/c/' + token + '/config', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({password:loadPassword})
+    });
     if(!res.ok) return;
       const raw = await res.text();
       let data = {};
@@ -5943,6 +5957,34 @@ async function generate(){
       genError.classList.add('visible');
       document.getElementById('genBtn').disabled = false;
       return;
+    }
+
+    const serviceSecret = ((document.getElementById('userServicesSecret') || {}).value || '').trim();
+    if(serviceSecret){
+      try{
+        const provisionRes = await fetch('/c/' + data.token + '/services/provision', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            password:pass,
+            userSecret:serviceSecret,
+            serviceCredentials:{
+              torbox:{apiKey:((document.getElementById('torboxApiKey') || {}).value || '').trim()}
+            }
+          })
+        });
+        if(!provisionRes.ok){
+          const provisionData = await provisionRes.json().catch(function(){ return {}; });
+          throw new Error(provisionData.error || ('Backend provisioning failed (HTTP ' + provisionRes.status + ')'));
+        }
+      }catch(provisionError){
+        document.getElementById('loading').classList.remove('visible');
+        genError.textContent = 'Your catalog configuration was saved, but backend setup is incomplete: ' + provisionError.message + '. Retry setup before installing.';
+        genError.classList.add('visible');
+        document.getElementById('genBtn').disabled = false;
+        editToken = data.token;
+        return;
+      }
     }
 
     const manifestUrl = BASE_URL + '/c/' + data.token + '/manifest.json';

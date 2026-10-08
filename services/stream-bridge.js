@@ -1,3 +1,4 @@
+const { assertPublicUrl } = require("../utils/net-guard");
 const { fetchCached } = require("./api-helpers");
 
 const STREAM_BRIDGE_TIMEOUT_MS = 8000;
@@ -43,7 +44,9 @@ async function fetchStreamsFromAddon(manifestUrl, type, id) {
   const cleanManifest = normaliseManifestUrl(manifestUrl);
   if (!cleanManifest) return [];
 
+  await assertPublicUrl(cleanManifest);
   const url = streamUrlFromManifest(cleanManifest, type, id);
+  await assertPublicUrl(url);
   const addonName = await fetchStreamAddonName(cleanManifest);
 
   const controller = new AbortController();
@@ -51,7 +54,7 @@ async function fetchStreamsFromAddon(manifestUrl, type, id) {
 
   try {
     console.log("STREAM BRIDGE CALL", redactUrlForLog(url));
-    const resp = await fetch(url, { signal: controller.signal });
+    const resp = await fetch(url, { signal: controller.signal, redirect: 'error' });
     console.log("STREAM BRIDGE STATUS", resp.status, redactUrlForLog(url));
     if (!resp.ok) return [];
 

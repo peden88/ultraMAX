@@ -1,0 +1,50 @@
+# Staging-only deployment. No production configs, volumes, ports, or hostnames.
+# In Dockhand, use a Git-backed stack pinned to ultramax-hardening.
+# Populate its environment editor; do not mount a production configs.json.
+services:
+  ultramax-staging:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ultramax:staging-local
+    container_name: ultramax-staging
+    restart: unless-stopped
+    environment:
+      NODE_ENV: staging
+      PORT: "7000"
+      FILTER_MODE: "on"
+      ULTRAMAX_CONFIGS_FILE: /data/configs.json
+      TMDB_KEY: ${TMDB_KEY:?Set TMDB_KEY in Dockhand environment editor}
+      AIOSTREAMS_BASE_URL: ${AIOSTREAMS_BASE_URL:?Set the existing AIOStreams URL}
+      AIOMETADATA_BASE_URL: ${AIOMETADATA_BASE_URL:?Set the existing AIOMetadata URL}
+      ULTRAMAX_ENCRYPTION_KEY: ${ULTRAMAX_ENCRYPTION_KEY:?Set an independent staging encryption key}
+      ULTRAMAX_SERVICES_MASTER_KEY: ${ULTRAMAX_SERVICES_MASTER_KEY:?Set an independent staging services master key}
+      AIOMETADATA_ADDON_PASSWORD: ${AIOMETADATA_ADDON_PASSWORD:-}
+      AIOSTREAMS_TEMPLATE_URL: ${AIOSTREAMS_TEMPLATE_URL:-https://templates.peden88.stream/complete.json}
+      AIOSTREAMS_TEMPLATE_ID: ${AIOSTREAMS_TEMPLATE_ID:-tamtaro.complete}
+      MDBLIST_KEYS: ${MDBLIST_KEYS:-}
+      TRAKT_CLIENT_ID: ${TRAKT_CLIENT_ID:-}
+      TVDB_API_KEY: ${TVDB_API_KEY:-}
+      FANART_KEY: ${FANART_KEY:-}
+      OMDB_KEY: ${OMDB_KEY:-}
+      GOOGLE_AI_KEY: ${GOOGLE_AI_KEY:-}
+      RPDB_KEY: ${RPDB_KEY:-}
+      TP_KEY: ${TP_KEY:-}
+    volumes:
+      - ultramax_staging_data:/data
+    networks:
+      - pangolin_frontend
+    expose:
+      - "7000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:7000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+volumes:
+  ultramax_staging_data:
+    name: ultramax_staging_data
+networks:
+  pangolin_frontend:
+    external: true
