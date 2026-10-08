@@ -5975,10 +5975,15 @@ async function generate(){
         });
         if(!provisionRes.ok){
           const provisionData = await provisionRes.json().catch(function(){ return {}; });
-          console.warn('Ultra MAX backend provisioning was not completed:', provisionData.error || provisionRes.status);
+          throw new Error(provisionData.error || ('Backend provisioning failed (HTTP ' + provisionRes.status + ')'));
         }
       }catch(provisionError){
-        console.warn('Ultra MAX backend provisioning request failed:', provisionError);
+        document.getElementById('loading').classList.remove('visible');
+        genError.textContent = 'Your catalog configuration was saved, but backend setup is incomplete: ' + provisionError.message + '. Retry setup before installing.';
+        genError.classList.add('visible');
+        document.getElementById('genBtn').disabled = false;
+        editToken = data.token;
+        return;
       }
     }
 
