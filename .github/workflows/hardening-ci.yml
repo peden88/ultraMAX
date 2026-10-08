@@ -19,6 +19,9 @@ jobs:
       - run: npm test
       - run: node --check index.js
       - run: node --check services/stream-bridge.js
+      - run: node --check services/stream-wizard-service.js
+      - run: node --check services/template-resolver.js
+      - run: node --check services/aiostreams-template-policy.js
       - run: node --check services/config-route-service.js
       - run: node --check services/provider-client.js
       - run: node --check services/provisioning-service.js
