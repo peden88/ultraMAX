@@ -1,0 +1,36 @@
+# Staging-only deployment. No production configs, volumes, ports, or hostnames.
+# Run from a clean checkout of ultramax-hardening with:
+# docker compose --env-file .env.staging -f compose.staging.yaml up -d --build
+services:
+  ultramax-staging:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ultramax:staging-local
+    container_name: ultramax-staging
+    restart: unless-stopped
+    env_file:
+      - .env.staging
+    environment:
+      NODE_ENV: staging
+      PORT: "7000"
+      FILTER_MODE: "on"
+      ULTRAMAX_CONFIGS_FILE: /data/configs.json
+    volumes:
+      - ultramax_staging_data:/data
+    networks:
+      - pangolin_frontend
+    expose:
+      - "7000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:7000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+volumes:
+  ultramax_staging_data:
+    name: ultramax_staging_data
+networks:
+  pangolin_frontend:
+    external: true
