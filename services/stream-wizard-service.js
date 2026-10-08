@@ -17,7 +17,9 @@ async function checkStreamWizard(req, res) {
       });
     }
 
-    await assertPublicUrl(manifestUrl);\n\n    const controller = new AbortController();
+    await assertPublicUrl(manifestUrl);
+
+    const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
 
     const r = await fetch(manifestUrl, {
@@ -25,7 +27,9 @@ async function checkStreamWizard(req, res) {
       headers: {
         'User-Agent': 'UltraMAX-StreamWizard/1.0'
       },
-      signal: controller.signal,\n      redirect: 'error'\n    });
+      signal: controller.signal,
+      redirect: 'error'
+    });
 
     clearTimeout(timeout);
 
