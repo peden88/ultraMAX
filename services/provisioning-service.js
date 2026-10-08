@@ -49,14 +49,14 @@ function aioMetadataConfig(userOverlay={}) {
 }
 async function provisionAioStreams({token,userSecret,existing,aiostreamsConfig,serviceCredentials={}}) {
   if(!userSecret||String(userSecret).length<2)throw new Error('A user services secret is required');
-  const templatePolicy=getAioStreamsTemplatePolicy(),template=await loadAioStreamsTemplate();
-  const config=await aioStreamsConfig(aiostreamsConfig,serviceCredentials);
-  const password=deriveServicePassword({token,userSecret,service:'aiostreams'});
   const fingerprint=fingerprintSecret({token,userSecret});
   if(existing?.uuid && existing.secretFingerprint && existing.secretFingerprint!==fingerprint) {
     const error=new Error('User service secret changed; explicit credential rotation is required');
     error.status=409;throw error;
   }
+  const templatePolicy=getAioStreamsTemplatePolicy(),template=await loadAioStreamsTemplate();
+  const config=await aioStreamsConfig(aiostreamsConfig,serviceCredentials);
+  const password=deriveServicePassword({token,userSecret,service:'aiostreams'});
   const canUpdate=existing?.uuid&&existing?.password&&(!existing.secretFingerprint||existing.secretFingerprint===fingerprint);
   const binding=canUpdate
     ?await providers.updateAioStreamsUser({binding:existing,config})
@@ -69,9 +69,13 @@ async function provisionAioStreams({token,userSecret,existing,aiostreamsConfig,s
 }
 async function provisionAioMetadata({token,userSecret,existing,aiometadataConfig}) {
   if(!userSecret||String(userSecret).length<2)throw new Error('A user services secret is required');
+  const fingerprint=fingerprintSecret({token,userSecret});
+  if(existing?.uuid && existing.secretFingerprint && existing.secretFingerprint!==fingerprint) {
+    const error=new Error('User service secret changed; explicit credential rotation is required');
+    error.status=409;throw error;
+  }
   const config=aioMetadataConfig(aiometadataConfig);
   const password=deriveServicePassword({token,userSecret,service:'aiometadata'});
-  const fingerprint=fingerprintSecret({token,userSecret});
   const canUpdate=existing?.uuid&&existing?.password&&(!existing.secretFingerprint||existing.secretFingerprint===fingerprint);
   const binding=canUpdate
     ?await providers.updateAioMetadataUser({binding:existing,config})
