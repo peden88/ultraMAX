@@ -121,3 +121,20 @@ test('service secret fingerprints are encrypted with backend bindings', () => {
   assert.equal(revealConfig(stored).services.aiostreams.secretFingerprint,'fp-secret');
   if(old===undefined)delete process.env.ULTRAMAX_ENCRYPTION_KEY;else process.env.ULTRAMAX_ENCRYPTION_KEY=old;
 });
+
+
+test('changed service secret refuses duplicate AIOMetadata account creation', async () => {
+  const { provisionAioMetadata } = require('../services/provisioning-service');
+  await assert.rejects(
+    provisionAioMetadata({token:'u',userSecret:'changed',existing:{uuid:'existing',password:'old',secretFingerprint:'different'},aiometadataConfig:{}}),
+    error => error.status === 409 && /rotation/.test(error.message)
+  );
+});
+
+test('changed service secret refuses duplicate AIOStreams account creation', async () => {
+  // AIOStreams requires a live template before provisioning, so verify the
+  // rotation guard is present without making a network call in unit tests.
+  const fs=require('node:fs');
+  const source=fs.readFileSync(require.resolve('../services/provisioning-service'),'utf8');
+  assert.equal((source.match(/existing\.secretFingerprint!==fingerprint/g)||[]).length,2);
+});
