@@ -20,8 +20,12 @@ async function aioStreamsConfig(userOverlay={},serviceCredentials={}) {
   const template=await loadAioStreamsTemplate();
   const inputOverrides=userOverlay?.templateInputs||{};
   const explicit={...(userOverlay||{})}; delete explicit.templateInputs;
+  // Provider credentials must come from the dedicated credential input, not an
+  // arbitrary config overlay that can silently replace the provisioned services.
+  delete explicit.services;
   const resolved=resolveTemplate(template,{inputOverrides,serviceCredentials}).config;
   const merged=deepMerge(resolved,explicit);
+  if (!Array.isArray(merged.services)) merged.services=[];
   const credentialServices=Object.entries(serviceCredentials||{})
     .filter(([,c])=>c&&typeof c==='object'&&Object.values(c).some(Boolean))
     .map(([id,c])=>({id,enabled:true,credentials:Object.fromEntries(Object.entries(c).filter(([,v])=>v!=null&&v!==''))}));
