@@ -358,6 +358,7 @@ document.querySelectorAll('button[data-url]').forEach(function(btn){
 });
 ;
 
+app.get("/", (req, res) => { res.redirect(302, "/configure"); });
 app.get("/configure", (req, res) => { res.setHeader("Cache-Control","public, max-age=300"); res.sendFile(path.join(__dirname,"configure.html")); });
 app.get("/configure/:token", (req, res) => { res.setHeader("Cache-Control","public, max-age=300"); res.sendFile(path.join(__dirname,"configure.html")); });
 app.get("/c/:token/configure", (req, res) => { res.redirect(`/configure/${req.params.token}`); });
