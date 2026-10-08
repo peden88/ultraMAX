@@ -5,6 +5,8 @@ const { publicBinding } = require('./user-services');
 
 function registerProvisioningRoutes(app, deps) {
   const { loadConfigs, saveConfigs, verifyPassword, hashPassword, rateLimit } = deps;
+  const createStreams = deps.provisionAioStreams || provisionAioStreams;
+  const createMetadata = deps.provisionAioMetadata || provisionAioMetadata;
 
   app.post('/c/:token/services/provision', async (req, res) => {
     const ip = req.ip || req.socket.remoteAddress;
@@ -23,6 +25,12 @@ function registerProvisioningRoutes(app, deps) {
     if(!userSecret||String(userSecret).length<2)return res.status(400).json({error:'A user services secret is required'});
     config.services=config.services||{version:1};
     const failures=[];
+    // The ultraMAX catalog selection remains authoritative. Provider-specific
+    // overrides are passed separately and never overwrite the catalog choices.
+    const selectedCatalogs=Array.isArray(config.catalogs)?config.catalogs:[];
+    const selectedLanguage=config.language||'en-US';
+    const metadataOverrides=req.body?.aiometadataConfig||{};
+    const streamsOverrides=req.body?.aiostreamsConfig||{};
     const checkpoint=async(service,binding)=>{
       config.services.version=1;
       config.services[service]=binding;
@@ -31,9 +39,9 @@ function registerProvisioningRoutes(app, deps) {
     };
 
     try {
-      await checkpoint('aiostreams',await provisionAioStreams({
+      await checkpoint('aiostreams',await createStreams({
         token,userSecret,existing:config.services.aiostreams,
-        aiostreamsConfig:req.body?.aiostreamsConfig||{},
+        aiostreamsConfig:streamsOverrides,
         serviceCredentials:req.body?.serviceCredentials||{}
       }));
     } catch(error) {
@@ -42,9 +50,9 @@ function registerProvisioningRoutes(app, deps) {
     }
 
     try {
-      await checkpoint('aiometadata',await provisionAioMetadata({
+      await checkpoint('aiometadata',await createMetadata({
         token,userSecret,existing:config.services.aiometadata,
-        aiometadataConfig:req.body?.aiometadataConfig||{}
+        aiometadataConfig:metadataOverrides
       }));
     } catch(error) {
       console.error('AIOMetadata provisioning failed:',error?.message||error);
@@ -56,7 +64,7 @@ function registerProvisioningRoutes(app, deps) {
       aiometadata:publicBinding(config.services.aiometadata)
     };
     if(failures.length)return res.status(502).json({ok:false,error:'One or more backend services failed to provision',failures,services});
-    res.json({ok:true,services});
+    res.json({ok:true,services,catalogs:{count:selectedCatalogs.length,language:selectedLanguage}});
   });
 
   app.post('/c/:token/services/check', async (req,res)=>{
