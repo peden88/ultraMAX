@@ -53,6 +53,10 @@ async function provisionAioStreams({token,userSecret,existing,aiostreamsConfig,s
   const config=await aioStreamsConfig(aiostreamsConfig,serviceCredentials);
   const password=deriveServicePassword({token,userSecret,service:'aiostreams'});
   const fingerprint=fingerprintSecret({token,userSecret});
+  if(existing?.uuid && existing.secretFingerprint && existing.secretFingerprint!==fingerprint) {
+    const error=new Error('User service secret changed; explicit credential rotation is required');
+    error.status=409;throw error;
+  }
   const canUpdate=existing?.uuid&&existing?.password&&(!existing.secretFingerprint||existing.secretFingerprint===fingerprint);
   const binding=canUpdate
     ?await providers.updateAioStreamsUser({binding:existing,config})
