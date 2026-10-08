@@ -27,7 +27,9 @@ async function fetchTrakt(path, traktClientId, authHeaders = null) {
       headers: {
         "Content-Type": "application/json",
         "trakt-api-version": "2",
-        "trakt-api-key": traktClientId,\n        ...(authHeaders || {})\n      }
+        "trakt-api-key": traktClientId,
+        ...(authHeaders || {})
+      }
     });
 
     cache.set(url, res.data);
