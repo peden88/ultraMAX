@@ -17,6 +17,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Check all tracked JavaScript syntax
+        run: git ls-files -z -- '*.js' | xargs -0 -r -n 1 node --check
       - run: node --check index.js
       - run: node --check services/stream-bridge.js
       - run: node --check services/stream-wizard-service.js
