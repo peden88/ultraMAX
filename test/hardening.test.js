@@ -124,11 +124,15 @@ test('service secret fingerprints are encrypted with backend bindings', () => {
 
 
 test('changed service secret refuses duplicate AIOMetadata account creation', async () => {
+  const oldKey=process.env.ULTRAMAX_SERVICES_MASTER_KEY;
+  process.env.ULTRAMAX_SERVICES_MASTER_KEY=Buffer.alloc(32,9).toString('base64');
   const { provisionAioMetadata } = require('../services/provisioning-service');
   await assert.rejects(
     provisionAioMetadata({token:'u',userSecret:'changed',existing:{uuid:'existing',password:'old',secretFingerprint:'different'},aiometadataConfig:{}}),
     error => error.status === 409 && /rotation/.test(error.message)
   );
+  if(oldKey===undefined)delete process.env.ULTRAMAX_SERVICES_MASTER_KEY;
+  else process.env.ULTRAMAX_SERVICES_MASTER_KEY=oldKey;
 });
 
 test('changed service secret refuses duplicate AIOStreams account creation', async () => {
