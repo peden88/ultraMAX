@@ -47,7 +47,14 @@ async function simklToMetas(items, type, rpdbKey, tpKey, excludeUnreleased, fana
 
     try {
       const tmdbType = type === 'series' ? 'tv' : 'movie';
-      let id = tmdbId;\n      if (!id && imdb) {\n        const found = await fetchCached(`https://api.themoviedb.org/3/find/${imdb}?api_key=${TMDB_KEY}&external_source=imdb_id`);\n        const match = type === 'series' ? found.tv_results?.[0] : found.movie_results?.[0];\n        id = match?.id;\n      }\n      if (!id) continue;\n      const data = await fetchCached(`https://api.themoviedb.org/3/${tmdbType}/${id}?api_key=${TMDB_KEY}`);
+      let id = tmdbId;
+      if (!id && imdb) {
+        const found = await fetchCached(`https://api.themoviedb.org/3/find/${imdb}?api_key=${TMDB_KEY}&external_source=imdb_id`);
+        const match = type === 'series' ? found.tv_results?.[0] : found.movie_results?.[0];
+        id = match?.id;
+      }
+      if (!id) continue;
+      const data = await fetchCached(`https://api.themoviedb.org/3/${tmdbType}/${id}?api_key=${TMDB_KEY}`);
       if(!data || !data.id) continue;
 
       const posterPath = data.poster_path;
