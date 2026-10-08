@@ -142,3 +142,62 @@ test('changed service secret refuses duplicate AIOStreams account creation', asy
   const source=fs.readFileSync(require.resolve('../services/provisioning-service'),'utf8');
   assert.equal((source.match(/existing\.secretFingerprint!==fingerprint/g)||[]).length,2);
 });
+
+test('unified provisioning checkpoints both providers and preserves catalog selections', async () => {
+  const express=require('express');
+  const {registerProvisioningRoutes}=require('../services/provisioning-route-service');
+  const app=express();app.use(express.json());
+  const saved={demo:{passwordHash:'hash',catalogs:['popular_movies','popular_series'],language:'en-GB'}};
+  const calls=[];let checkpoints=0;
+  registerProvisioningRoutes(app,{
+    loadConfigs:()=>saved,saveConfigs:async()=>{checkpoints++;},
+    verifyPassword:p=>({ok:p==='correct',needsUpgrade:false}),
+    hashPassword:p=>p,rateLimit:()=>false,
+    provisionAioStreams:async opts=>{calls.push(['streams',opts]);return {service:'aiostreams',status:'ready',uuid:'s1'};},
+    provisionAioMetadata:async opts=>{calls.push(['metadata',opts]);return {service:'aiometadata',status:'ready',uuid:'m1'};}
+  });
+  const server=app.listen(0);
+  try{
+    const url='http://127.0.0.1:'+server.address().port+'/c/demo/services/provision';
+    const post=body=>fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    let response=await post({password:'wrong',userSecret:'secret'});
+    assert.equal(response.status,401);assert.equal(calls.length,0);
+    response=await post({password:'correct',userSecret:'secret',serviceCredentials:{torbox:{apiKey:'key'}}});
+    assert.equal(response.status,200);
+    const data=await response.json();
+    assert.equal(data.ok,true);
+    assert.deepEqual(data.catalogs,{count:2,language:'en-GB'});
+    assert.deepEqual(saved.demo.catalogs,['popular_movies','popular_series']);
+    assert.equal(saved.demo.services.aiostreams.uuid,'s1');
+    assert.equal(saved.demo.services.aiometadata.uuid,'m1');
+    assert.equal(checkpoints,2);
+    assert.equal(calls[0][1].serviceCredentials.torbox.apiKey,'key');
+    assert.equal(calls[1][1].existing,undefined);
+  }finally{await new Promise((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
+});
+
+test('partial provider failure persists successful provisioning for safe retry', async () => {
+  const express=require('express');
+  const {registerProvisioningRoutes}=require('../services/provisioning-route-service');
+  const app=express();app.use(express.json());
+  const saved={demo:{passwordHash:'hash',catalogs:['a']}};
+  let attempts=0;
+  registerProvisioningRoutes(app,{
+    loadConfigs:()=>saved,saveConfigs:async()=>{},
+    verifyPassword:()=>({ok:true}),hashPassword:x=>x,rateLimit:()=>false,
+    provisionAioStreams:async({existing})=>({service:'aiostreams',status:'ready',uuid:existing?.uuid||'stable'}),
+    provisionAioMetadata:async()=>{attempts++;if(attempts===1)throw Object.assign(new Error('unavailable'),{status:503});return {service:'aiometadata',status:'ready',uuid:'meta'};}
+  });
+  const server=app.listen(0);
+  try{
+    const url='http://127.0.0.1:'+server.address().port+'/c/demo/services/provision';
+    const post=()=>fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({password:'x',userSecret:'secret'})});
+    let response=await post();
+    assert.equal(response.status,502);
+    assert.equal(saved.demo.services.aiostreams.uuid,'stable');
+    response=await post();
+    assert.equal(response.status,200);
+    assert.equal(saved.demo.services.aiostreams.uuid,'stable');
+    assert.equal(saved.demo.services.aiometadata.uuid,'meta');
+  }finally{await new Promise((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
+});
